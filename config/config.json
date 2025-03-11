@@ -1,0 +1,22 @@
+{
+    "ibkr": {
+        "host": "127.0.0.1",
+        "port": 7497,
+        "client_id": 1
+    },
+    "accounts": {
+        "cash_account_id": "DU3915301",
+        "investment_account_id": "DU4184147"
+    },
+    "cash_management": {
+        "min_cash_level": 100000,
+        "transfer_threshold": 120000
+    },
+    "email": {
+        "smtp_server": "smtp.gmail.com",
+        "smtp_port": 587,
+        "sender_email": "avimcm77@gmail.com",
+        "sender_password": "9cfmyfeq",
+        "recipient_email": "denverlitcus@gmail.com"
+    }
+}

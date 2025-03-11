@@ -1,0 +1,17 @@
+{
+    "ibkr": {
+        "host": "127.0.0.1",
+        "port": 7497,
+        "client_id": 1
+    },
+    "schedule": {
+        "cash_management": {
+            "time": ["10:00", "14:00"],
+            "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        },
+        "portfolio_rebalance": {
+            "time": ["10:30", "14:30"],
+            "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        }
+    }
+}

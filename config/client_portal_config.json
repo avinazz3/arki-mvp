@@ -1,0 +1,16 @@
+{
+    "ibkr": {
+        "host": "127.0.0.1",
+        "port": 7497,
+        "client_id": 2
+    },
+    "accounts": {
+        "cash_account_id": "DU12345",
+        "investment_account_id": "DU67890",
+        "dummy_account_id": "DU98765"
+    },
+    "dashboard": {
+        "refresh_interval": 60,
+        "charts": ["asset_allocation", "performance"]
+    }
+}

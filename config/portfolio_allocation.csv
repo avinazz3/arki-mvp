@@ -1,0 +1,15 @@
+account_type,strategy,instrument,instrument_type,exchange,target_percentage
+cash,Cash,CASH_SGD,CASH,,0.50
+cash,Cash,SHY,ETF,SMART,0.25
+cash,Cash,VGSH,ETF,SMART,0.25
+investment,Equities,SPY,ETF,SMART,0.20
+investment,Equities,QQQ,ETF,SMART,0.15
+investment,Equities,EWS,ETF,SMART,0.10
+investment,Equities,AAPL,STK,SMART,0.05
+investment,Bonds,AGG,ETF,SMART,0.10
+investment,Bonds,LQD,ETF,SMART,0.10
+investment,Bonds,TLT,ETF,SMART,0.05
+investment,Commodities,GLD,ETF,SMART,0.10
+investment,Commodities,USO,ETF,SMART,0.05
+investment,Commodities,SLV,ETF,SMART,0.05
+investment,Alternatives,REET,ETF,SMART,0.05

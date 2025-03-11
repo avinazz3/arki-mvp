@@ -1,0 +1,12 @@
+{
+    "min_cash_level": 10000,
+    "transfer_threshold": 12000,
+    "allocation_tolerance": 0.02,
+    "email": {
+        "smtp_server": "smtp.gmail.com",
+        "smtp_port": 587,
+        "sender_email": "your-email@gmail.com",
+        "sender_password": "your-app-password",
+        "recipient_email": "cio@example.com"
+    }
+}
