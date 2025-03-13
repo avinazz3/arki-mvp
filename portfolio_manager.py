@@ -1,13 +1,11 @@
 import os
+import json
 import logging
 import pandas as pd
-import time
 from datetime import datetime
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import json
-from ibkr_client import IBKRApp
 import base64
 import os.path
 from email.mime.text import MIMEText
@@ -16,7 +14,6 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-
 
 # Set up logging
 logging.basicConfig(
@@ -31,103 +28,259 @@ logger = logging.getLogger(__name__)
 
 class PortfolioManager:
     """
-    Portfolio Manager class for handling the portfolio allocation logic
+    Portfolio Manager class for handling the simulated cash account only
     """
     
-    def __init__(self, ibkr_client, config_path="config"):
+    def __init__(self, config_path="config"):
         """
         Initialize the portfolio manager
         
         Args:
-            ibkr_client: The IBKR client instance
             config_path: Path to configuration files
         """
-        self.ibkr = ibkr_client
+        # No IBKR client dependency
         self.config_path = config_path
         
         # Ensure config directory exists
         os.makedirs(self.config_path, exist_ok=True)
         
-        # Load configuration
-        self.config = self._load_config()
-        
         # Initialize portfolio states
         self.cash_account = None
-        self.investment_account = None
-        self.dummy_account = None
+        self.investment_account = None  # Used only for reference
         
         # Portfolio allocation data
         self.cash_portfolio = None
         self.investment_portfolio = None
         
+        # Load configuration
+        self.config = self._load_config()
+        
+        # Initialize simulated cash account if needed
+        self._initialize_simulated_cash_account()
+        
     def _load_config(self):
         """Load configuration from file"""
-        config_path = os.path.join(self.config_path, 'config.json')
-        logger.info(f"Attempting to load configuration from: {config_path}")
+        # First try to load client_portal_config.json
+        portal_config_path = os.path.join(self.config_path, 'client_portal_config.json')
         
         try:
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-            logger.info(f"Loaded configuration from {config_path}")
+            if os.path.exists(portal_config_path):
+                with open(portal_config_path, 'r') as f:
+                    config = json.load(f)
+                logger.info(f"Loaded configuration from {portal_config_path}")
+                
+                # Set default values if not present
+                if 'accounts' not in config:
+                    config['accounts'] = {}
+                
+                # Extract relevant account info and set defaults
+                config['cash_account_id'] = config['accounts'].get('cash_account_id', 'SIMULATED_CASH')
+                config['investment_account_id'] = config['accounts'].get('investment_account_id', 'DU3915301')
+                
+                # Get cash management settings
+                cash_management = config.get('cash_management', {})
+                config['min_cash_level'] = cash_management.get('min_cash_level', 10000.0)
+                config['transfer_threshold'] = cash_management.get('transfer_threshold', 5000.0)
+                config['allocation_tolerance'] = cash_management.get('allocation_tolerance', 0.02)
+                
+                # Add portfolio file and log directory paths
+                config['portfolio_file'] = os.path.join(self.config_path, 'portfolio_allocation.csv')
+                config['simulated_cash_file'] = os.path.join(self.config_path, 'simulated_cash_account.json')
+                config['log_dir'] = os.path.join(self.config_path, 'logs')
+                
+                # Add email config if not present
+                if 'email' not in config:
+                    config['email'] = {
+                        'recipient_email': 'example@example.com'
+                    }
+                
+                # Ensure log directory exists
+                os.makedirs(config['log_dir'], exist_ok=True)
+                
+                return config
             
-            # Add portfolio file and log directory paths
-            config['portfolio_file'] = os.path.join(self.config_path, 'portfolio_allocation.csv')
-            config['log_dir'] = os.path.join(self.config_path, 'logs')
+            # If no config file exists, create default config
+            logger.warning("No configuration file found. Creating default configuration.")
+            default_config = {
+                'cash_account_id': 'SIMULATED_CASH',
+                'investment_account_id': 'DU3915301',
+                'min_cash_level': 10000.0,
+                'transfer_threshold': 5000.0,
+                'allocation_tolerance': 0.02,
+                'portfolio_file': os.path.join(self.config_path, 'portfolio_allocation.csv'),
+                'simulated_cash_file': os.path.join(self.config_path, 'simulated_cash_account.json'),
+                'log_dir': os.path.join(self.config_path, 'logs'),
+                'email': {
+                    'recipient_email': 'example@example.com'
+                }
+            }
+            
+            # Save default config
+            os.makedirs(os.path.dirname(portal_config_path), exist_ok=True)
+            with open(portal_config_path, 'w') as f:
+                json.dump(default_config, f, indent=4)
             
             # Ensure log directory exists
-            os.makedirs(config['log_dir'], exist_ok=True)
+            os.makedirs(default_config['log_dir'], exist_ok=True)
             
-            return config
-        except FileNotFoundError:
-            logger.error(f"Configuration file not found: {config_path}")
-            return None
-        except json.JSONDecodeError:
-            logger.error(f"Invalid JSON in configuration file: {config_path}")
-            return None
+            return default_config
+            
         except Exception as e:
-            logger.error(f"Error loading configuration: {e}")
+            logger.error(f"Error loading configuration: {e}", exc_info=True)
+            # Return minimal default config
+            return {
+                'cash_account_id': 'SIMULATED_CASH',
+                'investment_account_id': 'DU3915301',
+                'min_cash_level': 10000.0,
+                'transfer_threshold': 5000.0,
+                'allocation_tolerance': 0.02,
+                'portfolio_file': os.path.join(self.config_path, 'portfolio_allocation.csv'),
+                'simulated_cash_file': os.path.join(self.config_path, 'simulated_cash_account.json'),
+                'log_dir': os.path.join(self.config_path, 'logs'),
+                'email': {
+                    'recipient_email': 'example@example.com'
+                }
+            }
+    
+    def _initialize_simulated_cash_account(self):
+        """Initialize simulated cash account if it doesn't exist"""
+        if not self.config:
+            logger.error("Configuration not loaded. Cannot initialize simulated cash account.")
+            return
+        
+        simulated_cash_file = self.config.get('simulated_cash_file')
+        if not simulated_cash_file:
+            logger.error("Simulated cash file path not defined in config.")
+            return
+        
+        # Check if simulated cash account file exists
+        if not os.path.exists(simulated_cash_file):
+            # Create default simulated cash account
+            default_cash_account = {
+                'id': self.config['cash_account_id'],
+                'summary': {
+                    'NetLiquidation_SGD': '50000',
+                    'TotalCashValue_SGD': '50000',
+                    'AvailableFunds_SGD': '50000'
+                },
+                'positions': {},
+                'data': {
+                    'account_info': {
+                        'NetLiquidation_SGD': '50000',
+                        'TotalCashValue_SGD': '50000',
+                        'AvailableFunds_SGD': '50000',
+                        'GrossPositionValue_SGD': '0'
+                    }
+                },
+                'transactions': [],
+                'last_updated': datetime.now().isoformat()
+            }
+            
+            # Save to file
+            os.makedirs(os.path.dirname(simulated_cash_file), exist_ok=True)
+            with open(simulated_cash_file, 'w') as f:
+                json.dump(default_cash_account, f, indent=4)
+            
+            logger.info(f"Created simulated cash account file at {simulated_cash_file}")
+    
+    def _load_simulated_cash_account(self):
+        """Load simulated cash account from file"""
+        simulated_cash_file = self.config.get('simulated_cash_file')
+        if not simulated_cash_file or not os.path.exists(simulated_cash_file):
+            logger.error("Simulated cash account file not found.")
+            return None
+        
+        try:
+            with open(simulated_cash_file, 'r') as f:
+                cash_account = json.load(f)
+            logger.info(f"Loaded simulated cash account from {simulated_cash_file}")
+            return cash_account
+        except Exception as e:
+            logger.error(f"Error loading simulated cash account: {e}", exc_info=True)
             return None
     
+    def _save_simulated_cash_account(self, cash_account):
+        """Save simulated cash account to file"""
+        simulated_cash_file = self.config.get('simulated_cash_file')
+        if not simulated_cash_file:
+            logger.error("Simulated cash file path not defined in config.")
+            return False
+        
+        try:
+            # Update last updated timestamp
+            cash_account['last_updated'] = datetime.now().isoformat()
+            
+            # Save to file
+            with open(simulated_cash_file, 'w') as f:
+                json.dump(cash_account, f, indent=4)
+            
+            logger.info(f"Saved simulated cash account to {simulated_cash_file}")
+            return True
+        except Exception as e:
+            logger.error(f"Error saving simulated cash account: {e}", exc_info=True)
+            return False
+    
     def load_account_info(self):
-        """Load account information from IBKR"""
-        logger.info("Loading account information from IBKR")
+        """Load simulated cash account information"""
+        logger.info("Loading simulated cash account information")
         
-        # Request account summary
-        account_summary = self.ibkr.request_account_summary()
-        logger.info(f"Received account summary for {len(account_summary)} accounts")
+        # Load simulated cash account
+        self.cash_account = self._load_simulated_cash_account()
+        if not self.cash_account:
+            # If loading failed, initialize and try again
+            self._initialize_simulated_cash_account()
+            self.cash_account = self._load_simulated_cash_account()
         
-        # Request positions for all accounts
-        positions = self.ibkr.request_positions()
-        logger.info(f"Received positions for {len(positions)} accounts")
-        
-        # Store account info
-        self.cash_account = {
-            'id': self.config['cash_account_id'],
-            'summary': account_summary.get(self.config['cash_account_id'], {}),
-            'positions': positions.get(self.config['cash_account_id'], {})
-        }
-        
+        # Create minimal investment account reference (without data)
         self.investment_account = {
             'id': self.config['investment_account_id'],
-            'summary': account_summary.get(self.config['investment_account_id'], {}),
-            'positions': positions.get(self.config['investment_account_id'], {})
+            'description': 'Investment account managed separately by InvestmentManager'
         }
-        
-        self.dummy_account = {
-            'id': self.config['dummy_account_id'],
-            'summary': account_summary.get(self.config['dummy_account_id'], {}),
-            'positions': positions.get(self.config['dummy_account_id'], {})
-        }
-        
-        # Load detailed account data
-        self.cash_account['data'] = self.ibkr.request_account_updates(self.config['cash_account_id'])
-        self.investment_account['data'] = self.ibkr.request_account_updates(self.config['investment_account_id'])
         
         return {
             'cash_account': self.cash_account,
-            'investment_account': self.investment_account,
-            'dummy_account': self.dummy_account
+            'investment_account': self.investment_account
         }
+    
+    def simulate_cash_deposit(self, amount):
+        """Simulate a cash deposit into the cash account"""
+        logger.info(f"Simulating cash deposit of {amount} into cash account")
+        
+        if not self.cash_account:
+            self.cash_account = self._load_simulated_cash_account()
+            if not self.cash_account:
+                logger.error("Failed to load simulated cash account.")
+                return False
+        
+        # Update cash balances
+        current_cash = float(self.cash_account['data']['account_info']['TotalCashValue_SGD'])
+        new_cash = current_cash + amount
+        
+        self.cash_account['summary']['TotalCashValue_SGD'] = str(new_cash)
+        self.cash_account['summary']['AvailableFunds_SGD'] = str(new_cash)
+        self.cash_account['summary']['NetLiquidation_SGD'] = str(new_cash)
+        
+        self.cash_account['data']['account_info']['TotalCashValue_SGD'] = str(new_cash)
+        self.cash_account['data']['account_info']['AvailableFunds_SGD'] = str(new_cash)
+        self.cash_account['data']['account_info']['NetLiquidation_SGD'] = str(new_cash)
+        
+        # Record transaction
+        transaction = {
+            'timestamp': datetime.now().isoformat(),
+            'type': 'deposit',
+            'amount': amount,
+            'balance_after': new_cash
+        }
+        
+        if 'transactions' not in self.cash_account:
+            self.cash_account['transactions'] = []
+        
+        self.cash_account['transactions'].append(transaction)
+        
+        # Save updated account
+        success = self._save_simulated_cash_account(self.cash_account)
+        
+        return success
     
     def load_portfolio_allocations(self):
         """Load portfolio allocation from CSV file"""
@@ -139,7 +292,7 @@ class PortfolioManager:
                 cash_df = df[df['account_type'] == 'cash']
                 self.cash_portfolio = cash_df.set_index('instrument')['target_percentage'].to_dict()
                 
-                # Filter for investment portfolio
+                # Filter for investment portfolio (for reference only)
                 investment_df = df[df['account_type'] == 'investment']
                 # Create hierarchical structure by strategy
                 investment_strategies = {}
@@ -172,25 +325,25 @@ class PortfolioManager:
         """Check cash level in cash account and determine if transfer is needed"""
         logger.info("Checking cash level in cash account")
         
-        if not self.cash_account or 'summary' not in self.cash_account:
+        if not self.cash_account or 'data' not in self.cash_account or 'account_info' not in self.cash_account['data']:
             logger.error("Cash account information not loaded")
             return {'error': 'Cash account information not loaded'}
         
-        # Get cash balance from account summary
-        account_summary = self.cash_account['summary']
+        # Get cash balance from account info
+        account_info = self.cash_account['data']['account_info']
         
         # Look for TotalCashValue or AvailableFunds in SGD
         cash_keys = ['TotalCashValue_SGD', 'AvailableFunds_SGD', 'TotalCashValue', 'AvailableFunds']
         
         cash_balance = None
         for key in cash_keys:
-            if key in account_summary:
-                cash_balance = float(account_summary[key])
+            if key in account_info:
+                cash_balance = float(account_info[key])
                 logger.info(f"Found cash balance using {key}: {cash_balance}")
                 break
                 
         if cash_balance is None:
-            logger.error(f"Cash balance not found in account summary: {account_summary.keys()}")
+            logger.error(f"Cash balance not found in account info: {account_info.keys()}")
             return {'error': 'Cash balance not found'}
         
         # Calculate excess cash
@@ -198,7 +351,7 @@ class PortfolioManager:
         transfer_threshold = self.config['transfer_threshold']
         
         excess_cash = max(0, cash_balance - min_cash_level)
-        should_transfer = excess_cash >= (transfer_threshold - min_cash_level)
+        should_transfer = excess_cash >= transfer_threshold
         
         result = {
             'account_id': self.cash_account['id'],
@@ -214,11 +367,11 @@ class PortfolioManager:
     
     def transfer_cash(self, amount, from_account, to_account):
         """
-        Transfer cash between accounts
+        Transfer cash from simulated cash account
         
         Args:
             amount: Amount to transfer
-            from_account: Source account ID
+            from_account: Source account ID (must be cash account)
             to_account: Destination account ID
             
         Returns:
@@ -226,10 +379,57 @@ class PortfolioManager:
         """
         logger.info(f"Transferring {amount} from {from_account} to {to_account}")
         
-        # In real implementation, this would use IBKR API to initiate transfer
-        # For demonstration, we'll just log the transfer
+        # Only handle transfers from the simulated cash account
+        if from_account != self.config['cash_account_id']:
+            logger.error(f"Invalid source account: {from_account}. This manager only handles the simulated cash account.")
+            return False
         
-        # Record transfer details
+        # Load cash account if not loaded
+        if not self.cash_account:
+            self.cash_account = self._load_simulated_cash_account()
+            if not self.cash_account:
+                logger.error("Failed to load simulated cash account.")
+                return False
+        
+        # Check if sufficient funds
+        current_cash = float(self.cash_account['data']['account_info']['TotalCashValue_SGD'])
+        if current_cash < amount:
+            logger.error(f"Insufficient funds in cash account. Available: {current_cash}, Requested: {amount}")
+            return False
+        
+        # Update cash account
+        new_cash = current_cash - amount
+        
+        self.cash_account['summary']['TotalCashValue_SGD'] = str(new_cash)
+        self.cash_account['summary']['AvailableFunds_SGD'] = str(new_cash)
+        self.cash_account['summary']['NetLiquidation_SGD'] = str(new_cash)
+        
+        self.cash_account['data']['account_info']['TotalCashValue_SGD'] = str(new_cash)
+        self.cash_account['data']['account_info']['AvailableFunds_SGD'] = str(new_cash)
+        self.cash_account['data']['account_info']['NetLiquidation_SGD'] = str(new_cash)
+        
+        # Record transaction
+        transaction = {
+            'timestamp': datetime.now().isoformat(),
+            'type': 'transfer_out',
+            'amount': amount,
+            'destination_account': to_account,
+            'balance_after': new_cash
+        }
+        
+        if 'transactions' not in self.cash_account:
+            self.cash_account['transactions'] = []
+        
+        self.cash_account['transactions'].append(transaction)
+        
+        # Save updated account
+        success = self._save_simulated_cash_account(self.cash_account)
+        
+        if not success:
+            logger.error("Failed to save cash account after transfer.")
+            return False
+        
+        # Record transfer details for notification and logging
         transfer_data = {
             'timestamp': datetime.now().isoformat(),
             'from_account': from_account,
@@ -238,10 +438,6 @@ class PortfolioManager:
         }
         
         # Save transfer log
-        if not self.config:
-            logger.error("Configuration not loaded")
-            return False
-        
         transfer_log_path = os.path.join(self.config['log_dir'], 'transfers.csv')
         df = pd.DataFrame([transfer_data])
         
@@ -254,7 +450,7 @@ class PortfolioManager:
         self.notify_transfer(transfer_data)
         
         return True
-    
+        
     def notify_transfer(self, transfer_data):
         """
         Send email notification about cash transfer using Gmail API
@@ -284,13 +480,18 @@ class PortfolioManager:
                 if creds and creds.expired and creds.refresh_token:
                     creds.refresh(Request())
                 else:
-                    flow = InstalledAppFlow.from_client_secrets_file(
-                        "credentials.json", ["https://www.googleapis.com/auth/gmail.send"]
-                    )
-                    creds = flow.run_local_server(port=0)
-                # Save the credentials for the next run
-                with open("token.json", "w") as token:
-                    token.write(creds.to_json())
+                    try:
+                        flow = InstalledAppFlow.from_client_secrets_file(
+                            "credentials.json", ["https://www.googleapis.com/auth/gmail.send"]
+                        )
+                        creds = flow.run_local_server(port=0)
+                        # Save the credentials for the next run
+                        with open("token.json", "w") as token:
+                            token.write(creds.to_json())
+                    except Exception as e:
+                        logger.error(f"Error with Gmail authentication: {e}")
+                        logger.info("Notification will be logged but not sent via email")
+                        return False
             
             # Create email message
             message = MIMEMultipart()
@@ -317,150 +518,54 @@ class PortfolioManager:
             
             message.attach(MIMEText(body, 'html'))
             
-            # Encode the message
-            encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-            
-            # Create the Gmail API service
-            service = build('gmail', 'v1', credentials=creds)
-            
-            # Send the message
-            send_message = service.users().messages().send(
-                userId="me", 
-                body={'raw': encoded_message}
-            ).execute()
-            
-            logger.info(f"Transfer notification email sent via Gmail API. Message ID: {send_message['id']}")
-            return True
+            try:
+                # Encode the message
+                encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+                
+                # Create the Gmail API service
+                service = build('gmail', 'v1', credentials=creds)
+                
+                # Send the message
+                send_message = service.users().messages().send(
+                    userId="me", 
+                    body={'raw': encoded_message}
+                ).execute()
+                
+                logger.info(f"Transfer notification email sent via Gmail API. Message ID: {send_message['id']}")
+                return True
+            except Exception as e:
+                logger.error(f"Error sending email: {e}")
+                logger.info("Notification was logged but not sent via email")
+                return False
         
-        except HttpError as error:
-            logger.error(f"Gmail API error: {error}")
-            return False
         except Exception as e:
-            logger.error(f"Error sending notification email: {e}", exc_info=True)
+            logger.error(f"Error in notification process: {e}", exc_info=True)
             return False
-    def allocate_excess_cash(self):
-        """
-        Allocate excess cash in cash account according to cash portfolio percentages
-        
-        Returns:
-            dict: Allocation results
-        """
-        logger.info("Allocating excess cash in cash account")
-        
-        # Check cash level
-        cash_info = self.check_cash_level()
-        
-        if 'error' in cash_info:
-            return cash_info
-        
-        if not cash_info['excess_cash'] > 0:
-            logger.info("No excess cash to allocate")
-            return {'status': 'No excess cash to allocate'}
-        
-        # If cash portfolio is not loaded, try to load it
-        if not self.cash_portfolio:
-            self.load_portfolio_allocations()
-            
-        if not self.cash_portfolio:
-            logger.error("Cash portfolio allocation not available")
-            return {'error': 'Cash portfolio allocation not available'}
-        
-        # Calculate allocation amounts
-        excess_cash = cash_info['excess_cash']
-        allocation = {}
-        
-        for instrument, percentage in self.cash_portfolio.items():
-            allocation[instrument] = excess_cash * percentage
-            
-        logger.info(f"Cash allocation plan: {allocation}")
-        
-        # In a real implementation, this would place orders via IBKR API
-        # For demonstration, just log the allocation
-        
-        return {
-            'status': 'Allocation plan created',
-            'excess_cash': excess_cash,
-            'allocation': allocation,
-            'should_transfer': cash_info['should_transfer']
-        }
     
-    def handle_cash_management(self):
-        """
-        Main function for cash management (Milestone 1)
+    def save_config(self):
+        """Save configuration changes back to file"""
+        portal_config_path = os.path.join(self.config_path, 'client_portal_config.json')
         
-        This function:
-        1. Checks cash level
-        2. Allocates excess cash within cash account
-        3. Transfers cash to investment account if threshold is reached
-        """
-        logger.info("Starting cash management process")
-        
-        # Load account info if not already loaded
-        if not self.cash_account or not self.investment_account:
-            self.load_account_info()
-        
-        # Check cash level and get allocation plan
-        allocation_result = self.allocate_excess_cash()
-        
-        if 'error' in allocation_result:
-            logger.error(f"Error in cash management: {allocation_result['error']}")
-            return allocation_result
-        
-        # If threshold for transfer is reached, transfer cash to investment account
-        if allocation_result.get('should_transfer', False):
-            excess_cash = allocation_result['excess_cash']
-            
-            # Transfer cash
-            transfer_success = self.transfer_cash(
-                amount=excess_cash,
-                from_account=self.cash_account['id'],
-                to_account=self.investment_account['id']
-            )
-            
-            if transfer_success:
-                logger.info(f"Successfully transferred {excess_cash} to investment account")
-                return {
-                    'status': 'Cash transferred to investment account',
-                    'amount': excess_cash,
-                    'from_account': self.cash_account['id'],
-                    'to_account': self.investment_account['id']
-                }
+        try:
+            if os.path.exists(portal_config_path):
+                with open(portal_config_path, 'r') as f:
+                    config = json.load(f)
+                
+                # Update cash management settings
+                config['cash_management'] = config.get('cash_management', {})
+                config['cash_management']['min_cash_level'] = self.config['min_cash_level']
+                config['cash_management']['transfer_threshold'] = self.config['transfer_threshold']
+                config['cash_management']['allocation_tolerance'] = self.config['allocation_tolerance']
+                
+                # Save updated config
+                with open(portal_config_path, 'w') as f:
+                    json.dump(config, f, indent=4)
+                
+                logger.info(f"Saved updated configuration to {portal_config_path}")
+                return True
             else:
-                logger.error("Failed to transfer cash")
-                return {'error': 'Failed to transfer cash'}
-        else:
-            # If threshold not reached, just maintain cash allocation
-            logger.info("Cash threshold for transfer not reached. Maintaining allocation within cash account.")
-            return {
-                'status': 'Maintaining cash allocation',
-                'allocation': allocation_result.get('allocation', {})
-            }
-
-
-# Example usage
-if __name__ == "__main__":
-    # Create IBKR client
-    ibkr_app = IBKRApp(host="127.0.0.1", port=7497, client_id=1)
-    
-    try:
-        # Connect to IBKR
-        if ibkr_app.connect():
-            # Create portfolio manager
-            manager = PortfolioManager(ibkr_app)
-            
-            # Load account information
-            accounts = manager.load_account_info()
-            logger.info(f"Loaded account info: {accounts.keys()}")
-            
-            # Load portfolio allocations
-            manager.load_portfolio_allocations()
-            
-            # Handle cash management
-            result = manager.handle_cash_management()
-            logger.info(f"Cash management result: {result}")
-            
-    except Exception as e:
-        logger.error(f"Error in portfolio management: {e}", exc_info=True)
-    finally:
-        # Disconnect from IBKR
-        ibkr_app.disconnect()
+                logger.error(f"Configuration file not found: {portal_config_path}")
+                return False
+        except Exception as e:
+            logger.error(f"Error saving configuration: {e}", exc_info=True)
+            return False

@@ -174,3 +174,105 @@ class IBKRApp(EWrapper, EClient):
         self.cancelPositions()
         
         return self.account_values
+
+    # Add these methods to your IBKRApp class
+
+    # Market Data Methods
+    def tickPrice(self, reqId, tickType, price, attrib):
+        """Called when price data is received"""
+        if not hasattr(self, 'market_data'):
+            self.market_data = {}
+        
+        if reqId not in self.market_data:
+            self.market_data[reqId] = {}
+        
+        # Store the price based on tickType
+        # 4 = Last Price, 1 = Bid, 2 = Ask
+        self.market_data[reqId][tickType] = price
+        
+        # If it's the last price, log it
+        if tickType == 4:
+            logger.info(f"Market data received for reqId {reqId}: Last Price = {price}")
+
+    def tickSize(self, reqId, tickType, size):
+        """Called when size data is received"""
+        pass  # We can implement this if needed
+
+    def tickString(self, reqId, tickType, value):
+        """Called when string data is received"""
+        pass  # We can implement this if needed
+
+    def tickGeneric(self, reqId, tickType, value):
+        """Called when generic tick data is received"""
+        pass  # We can implement this if needed
+
+    def marketDataType(self, reqId, marketDataType):
+        """Called when the market data type changes"""
+        logger.info(f"Market data type for reqId {reqId}: {marketDataType}")
+
+    def request_market_data(self, contract, snapshot=False, timeout=5):
+        """Request market data for a contract and wait for the response"""
+        if not hasattr(self, 'market_data'):
+            self.market_data = {}
+        
+        # Generate a request ID
+        reqId = self.next_order_id
+        self.next_order_id += 1
+        
+        # Clear any existing data for this request ID
+        if reqId in self.market_data:
+            del self.market_data[reqId]
+        
+        # Request market data
+        logger.info(f"Requesting market data for {contract.symbol} ({contract.secType})")
+        self.reqMktData(reqId, contract, "", snapshot, False, [])
+        
+        # Wait for data to arrive with timeout
+        start_time = time.time()
+        while (reqId not in self.market_data or 
+            4 not in self.market_data.get(reqId, {}) or 
+            self.market_data[reqId].get(4) == 0) and time.time() - start_time < timeout:
+            time.sleep(0.1)
+        
+        # Get the price
+        price = None
+        if reqId in self.market_data and 4 in self.market_data[reqId]:
+            price = self.market_data[reqId][4]  # Get Last Price (tickType 4)
+        
+        # Cancel the market data subscription if it wasn't a snapshot
+        if not snapshot:
+            self.cancelMktData(reqId)
+        
+        if price is not None and price > 0:
+            logger.info(f"Retrieved market price for {contract.symbol}: {price}")
+            return price
+        else:
+            logger.warning(f"Could not retrieve valid price for {contract.symbol}")
+            return None
+    
+    def request_delayed_market_data(self, contract):
+        """
+        Request delayed market data for a contract
+        
+        Args:
+            contract: Contract object
+            
+        Returns:
+            float: Market price (delayed)
+        """
+        try:
+            # Set market data type to delayed
+            if hasattr(self, 'client'):
+                self.client.reqMarketDataType(3)  # 3 = delayed data
+            
+            # Request market data
+            price = self.request_market_data(contract)
+            
+            # Set market data type back to real-time
+            if hasattr(self, 'client'):
+                self.client.reqMarketDataType(1)  # 1 = real-time data
+            
+            return price
+        except Exception as e:
+            logger.error(f"Error requesting delayed market data: {e}")
+            return None

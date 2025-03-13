@@ -11,6 +11,14 @@
     },
     "dashboard": {
         "refresh_interval": 60,
-        "charts": ["asset_allocation", "performance"]
+        "charts": [
+            "asset_allocation",
+            "performance"
+        ]
+    },
+    "cash_management": {
+        "min_cash_level": 11000.0,
+        "transfer_threshold": 4000.0,
+        "allocation_tolerance": 0.02
     }
 }

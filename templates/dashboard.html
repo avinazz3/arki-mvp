@@ -1,0 +1,186 @@
+
+{% extends "base.html" %}
+
+{% block title %}Arki Portfolio - Dashboard{% endblock %}
+
+{% block head %}
+<style>
+    .metrics-card {
+        height: 100%;
+    }
+    .chart-container {
+        min-height: 400px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Portfolio Dashboard</h1>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card metrics-card">
+            <div class="card-header">
+                <h5>Cash Account (Simulated)</h5>
+            </div>
+            <div class="card-body">
+                {% if account_data.cash_account %}
+                    <p><strong>Account ID:</strong> {{ account_data.cash_account.id }}</p>
+                    <p><strong>Cash Balance:</strong> ${{ "%.2f"|format(account_data.cash_account.data.account_info.get('TotalCashValue_SGD', 0)|float) }}</p>
+                    <p><strong>Min Cash Level:</strong> ${{ "%.2f"|format(cash_info.min_cash_level) }}</p>
+                    <p><strong>Excess Cash:</strong> ${{ "%.2f"|format(cash_info.excess_cash) }}</p>
+                    <p><strong>Transfer Threshold:</strong> ${{ "%.2f"|format(cash_info.transfer_threshold) }}</p>
+                    <p><strong>Should Transfer:</strong> {{ "Yes" if cash_info.should_transfer else "No" }}</p>
+                    
+                    <div class="mt-3">
+                        <a href="/deposit" class="btn btn-success">Deposit Funds</a>
+                        {% if cash_info.should_transfer %}
+                            <form action="/transfer" method="post" class="d-inline ml-2">
+                                <input type="hidden" name="amount" value="{{ cash_info.excess_cash }}">
+                                <button type="submit" class="btn btn-primary">Transfer to Investment</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <p>Cash account data not available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+    <div class="card metrics-card">
+        <div class="card-header">
+            <h5>Investment Account{% if not connected %} (Simulated){% endif %}</h5>
+        </div>
+        <div class="card-body">
+            {% if account_data.investment_account %}
+                <p><strong>Account ID:</strong> {{ account_data.investment_account.id }}</p>
+                
+                {% if account_data.investment_account.cash_balance is defined and account_data.investment_account.cash_balance is not none %}
+                    <p><strong>Cash Balance:</strong> ${{ "%.2f"|format(account_data.investment_account.cash_balance|float) }}</p>
+                {% else %}
+                    <p><strong>Cash Balance:</strong> $0.00</p>
+                {% endif %}
+                
+                {% if account_data.investment_account.total_value is defined and account_data.investment_account.total_value is not none %}
+                    <p><strong>Portfolio Value:</strong> ${{ "%.2f"|format(account_data.investment_account.total_value|float) }}</p>
+                {% else %}
+                    <p><strong>Portfolio Value:</strong> $0.00</p>
+                {% endif %}
+                
+                <p><strong>Number of Positions:</strong> {{ account_data.investment_account.positions|length if account_data.investment_account.positions else 0 }}</p>
+                
+                {% if not connected %}
+                    <div class="alert alert-warning mt-3">
+                        <small>Investment account is in simulation mode. Connect to IBKR for real data.</small>
+                    </div>
+                {% endif %}
+            {% else %}
+                <p>Investment account data not available</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Asset Allocation</h5>
+            </div>
+            <div class="card-body">
+                <div id="allocation-chart" class="chart-container">
+                    {% if allocation_chart %}
+                        <div id="allocation-plot"></div>
+                    {% else %}
+                        <p>No allocation data available</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Performance History</h5>
+            </div>
+            <div class="card-body">
+                <div id="performance-chart" class="chart-container">
+                    {% if performance_chart %}
+                        <div id="performance-plot"></div>
+                    {% else %}
+                        <p>No performance data available</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if cash_account and cash_account.transactions and cash_account.transactions|length > 0 %}
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Recent Transactions</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date/Time</th>
+                                <th>Type</th>
+                                <th>Amount</th>
+                                <th>Details</th>
+                                <th>Balance After</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tx in cash_account.transactions|sort(attribute='timestamp', reverse=True) %}
+                                {% if loop.index <= 10 %}
+                                <tr>
+                                    <td>{{ tx.timestamp }}</td>
+                                    <td>{{ tx.type }}</td>
+                                    <td>${{ "%.2f"|format(tx.amount) }}</td>
+                                    <td>
+                                        {% if tx.type == 'transfer_out' %}
+                                            To: {{ tx.destination_account }}
+                                        {% endif %}
+                                    </td>
+                                    <td>${{ "%.2f"|format(tx.balance_after) }}</td>
+                                </tr>
+                                {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Render charts if data is available
+    {% if allocation_chart %}
+        const allocationData = {{ allocation_chart|safe }};
+        Plotly.newPlot('allocation-plot', allocationData.data, allocationData.layout);
+    {% endif %}
+    
+    {% if performance_chart %}
+        const performanceData = {{ performance_chart|safe }};
+        Plotly.newPlot('performance-plot', performanceData.data, performanceData.layout);
+    {% endif %}
+    
+    // Auto-refresh data every minute
+    setTimeout(function() {
+        location.reload();
+    }, 60000);
+</script>
+{% endblock %}
+    

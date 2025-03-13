@@ -1,0 +1,162 @@
+
+{% extends "base.html" %}
+
+{% block title %}Arki Portfolio - Portfolio Details{% endblock %}
+
+{% block content %}
+<h1>Portfolio Details</h1>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <ul class="nav nav-tabs" id="portfolioTabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" id="cash-tab" data-toggle="tab" href="#cash" role="tab">Cash Portfolio</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="investment-tab" data-toggle="tab" href="#investment" role="tab">Investment Portfolio</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="positions-tab" data-toggle="tab" href="#positions" role="tab">Current Positions</a>
+            </li>
+        </ul>
+        
+        <div class="tab-content mt-3" id="portfolioTabContent">
+            <!-- Cash Portfolio Tab -->
+            <div class="tab-pane fade show active" id="cash" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Cash Portfolio Allocation</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if cash_portfolio %}
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Instrument</th>
+                                        <th>Target Percentage</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for instrument, percentage in cash_portfolio.items() %}
+                                        <tr>
+                                            <td>{{ instrument }}</td>
+                                            <td>{{ "%.2f"|format(percentage * 100) }}%</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <p>No cash portfolio allocation data available</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Investment Portfolio Tab -->
+            <div class="tab-pane fade" id="investment" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Investment Portfolio Allocation</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if investment_portfolio and investment_portfolio is mapping %}
+                            {% for strategy, instruments in investment_portfolio.items() %}
+                                <h6>{{ strategy }}</h6>
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Instrument</th>
+                                            <th>Type</th>
+                                            <th>Exchange</th>
+                                            <th>Target Percentage</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for instrument, details in instruments.items() %}
+                                            <tr>
+                                                <td>{{ instrument }}</td>
+                                                <td>{{ details.instrument_type }}</td>
+                                                <td>{{ details.exchange }}</td>
+                                                <td>{{ "%.2f"|format(details.target_percentage * 100) }}%</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            {% endfor %}
+                        {% else %}
+                            <p>No investment portfolio allocation data available</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Positions Tab -->
+            <div class="tab-pane fade" id="positions" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Current Positions</h5>
+                    </div>
+                    <div class="card-body">
+                        <h6>Cash Account Positions</h6>
+                        {% if cash_positions %}
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Symbol</th>
+                                        <th>Type</th>
+                                        <th>Position</th>
+                                        <th>Market Price</th>
+                                        <th>Market Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for key, position in cash_positions.items() %}
+                                        <tr>
+                                            <td>{{ position.contract.symbol }}</td>
+                                            <td>{{ position.contract.secType }}</td>
+                                            <td>{{ position.position }}</td>
+                                            <td>${{ "%.2f"|format(position.marketPrice or 0) }}</td>
+                                            <td>${{ "%.2f"|format(position.marketValue or 0) }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <p>No cash account positions available</p>
+                        {% endif %}
+                        
+                        <h6 class="mt-4">Investment Account Positions</h6>
+                        {% if investment_positions %}
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Symbol</th>
+                                        <th>Type</th>
+                                        <th>Position</th>
+                                        <th>Market Price</th>
+                                        <th>Market Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for key, position in investment_positions.items() %}
+                                        <tr>
+                                            <td>{{ position.symbol }}</td>
+                                            <td>{{ position.secType }}</td>
+                                            <td>{{ position.position }}</td>
+                                            <td>${{ "%.2f"|format(position.marketPrice or 0) }}</td>
+                                            <td>${{ "%.2f"|format(position.marketValue or 0) }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <p>No investment account positions available</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+    

@@ -1,0 +1,24 @@
+
+/* Custom styles for Arki Portfolio Management */
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+.jumbotron {
+    background-color: #f8f9fa;
+}
+
+.card {
+    margin-bottom: 20px;
+}
+
+.chart-container {
+    width: 100%;
+    min-height: 300px;
+}
+
+footer {
+    margin-top: 50px;
+}
+    

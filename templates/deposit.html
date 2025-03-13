@@ -1,0 +1,43 @@
+
+{% extends "base.html" %}
+
+{% block title %}Arki Portfolio - Deposit{% endblock %}
+
+{% block content %}
+<h1>Deposit to Cash Account</h1>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Deposit Funds</h5>
+            </div>
+            <div class="card-body">
+                <form action="/deposit" method="post">
+                    <div class="form-group">
+                        <label for="amount">Deposit Amount (SGD)</label>
+                        <input type="number" class="form-control" id="amount" name="amount" step="1000" min="1000" required>
+                        <small class="form-text text-muted">Enter the amount to deposit into your cash account</small>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Deposit Funds</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Information</h5>
+            </div>
+            <div class="card-body">
+                <p>This is a simulated deposit to your cash account. In a real application, this would integrate with 
+                    a payment gateway or banking API.</p>
+                <p>After depositing funds, you'll be redirected to the dashboard where you can see your updated account balance.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+    

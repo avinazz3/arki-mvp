@@ -1,0 +1,55 @@
+
+{% extends "base.html" %}
+
+{% block title %}Arki Portfolio - Settings{% endblock %}
+
+{% block content %}
+<h1>Portfolio Settings</h1>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Cash Management Settings</h5>
+            </div>
+            <div class="card-body">
+                <form action="/settings" method="post">
+                    <div class="form-group">
+                        <label for="min_cash_level">Minimum Cash Level (SGD)</label>
+                        <input type="number" class="form-control" id="min_cash_level" name="min_cash_level" step="1000" value="{{ settings.min_cash_level }}">
+                        <small class="form-text text-muted">Minimum cash amount to maintain in cash account</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="transfer_threshold">Transfer Threshold (SGD)</label>
+                        <input type="number" class="form-control" id="transfer_threshold" name="transfer_threshold" step="1000" value="{{ settings.transfer_threshold }}">
+                        <small class="form-text text-muted">Cash level that triggers transfer to investment account</small>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Connection Settings</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>IBKR Host:</strong> {{ settings.ibkr_host }}</p>
+                <p><strong>IBKR Port:</strong> {{ settings.ibkr_port }}</p>
+                <p><small class="form-text text-muted">To change connection settings, edit the configuration file directly.</small></p>
+                
+                <div class="form-group">
+                    <label for="allocation_tolerance">Allocation Tolerance</label>
+                    <input type="number" class="form-control" id="allocation_tolerance" name="allocation_tolerance" step="0.01" min="0.01" max="0.10" value="{{ settings.allocation_tolerance }}" disabled>
+                    <small class="form-text text-muted">Percentage threshold for rebalancing (e.g., 0.02 = 2%)</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+    

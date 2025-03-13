@@ -1,0 +1,26 @@
+{
+    "id": "DU12345",
+    "summary": {
+        "NetLiquidation_SGD": "64000.0",
+        "TotalCashValue_SGD": "64000.0",
+        "AvailableFunds_SGD": "64000.0"
+    },
+    "positions": {},
+    "data": {
+        "account_info": {
+            "NetLiquidation_SGD": "64000.0",
+            "TotalCashValue_SGD": "64000.0",
+            "AvailableFunds_SGD": "64000.0",
+            "GrossPositionValue_SGD": "0"
+        }
+    },
+    "transactions": [
+        {
+            "timestamp": "2025-03-13T08:55:54.214286",
+            "type": "deposit",
+            "amount": 14000.0,
+            "balance_after": 64000.0
+        }
+    ],
+    "last_updated": "2025-03-13T08:55:54.214303"
+}
