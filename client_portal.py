@@ -11,6 +11,7 @@ import plotly.utils
 from threading import Thread
 from pathlib import Path
 import time
+from simple_account_storage import load_account_details, save_account_details, update_account_with_orders, load_orders_from_csv
 
 # Import our modules
 from ibkr_client import IBKRApp
@@ -39,7 +40,8 @@ app_state = {
     'portfolio_manager': None,
     'investment_manager': None,
     'connected': False,
-    'config_path': 'config'
+    'config_path': 'config',
+    'static_account_data': None  # For storing the loaded account data
 }
 
 # Configuration
@@ -55,7 +57,7 @@ def load_config():
         },
         'accounts': {
             'cash_account_id': 'SIMULATED_CASH',
-            'investment_account_id': 'DU67890'
+            'investment_account_id': 'DU4184147'
         },
         'dashboard': {
             'refresh_interval': 60,  # Seconds
@@ -110,44 +112,47 @@ def initialize_components():
         app_state['investment_manager'] = InvestmentManager(app_state['ibkr_app'])
         # Set the investment account ID from config
         app_state['investment_manager'].investment_account_id = config['accounts']['investment_account_id']
+    
+    # Load static account data from file
+    if app_state['static_account_data'] is None:
+        account_id = config['accounts']['investment_account_id']
+        app_state['static_account_data'] = load_account_details(account_id)
+        
+        # Apply orders from CSV if account data was loaded
+        if app_state['static_account_data']:
+            orders = load_orders_from_csv()
+            if orders:
+                app_state['static_account_data'] = update_account_with_orders(app_state['static_account_data'], orders)
+                # Save updated account data
+                save_account_details(app_state['static_account_data'], account_id)
+                logger.info(f"Applied {len(orders)} orders to account {account_id}")
+            
+            # Set account data in investment manager
+            if app_state['investment_manager']:
+                app_state['investment_manager'].investment_account = app_state['static_account_data']
 
 # Connect to IBKR in a separate thread
 def connect_ibkr_async():
-    """Connect to IBKR in a separate thread"""
+    """Connect to IBKR in a separate thread (simulated for demo)"""
     
     def connect_job():
         try:
             initialize_components()
-            config = load_config()
-            ibkr_config = config['ibkr']
             
-            # Connect to IBKR using connect_to_ibkr method
-            success = app_state['ibkr_app'].connect_to_ibkr(
-                host=ibkr_config['host'],
-                port=ibkr_config['port'],
-                client_id=ibkr_config['client_id']
-            )
+            # For the demo, set connected to true without actually connecting
+            app_state['connected'] = True
+            logger.info("Demo mode active - using static account data instead of IBKR connection")
             
-            app_state['connected'] = success
-            
-            if success:
-                logger.info("Connected to IBKR successfully")
-                # Load investment account data (requires IBKR connection)
-                if app_state['investment_manager']:
-                    app_state['investment_manager'].load_account_info()
-            else:
-                logger.error("Failed to connect to IBKR")
-            
-            # Always load portfolio manager data (doesn't require IBKR connection)
+            # Always load portfolio manager data 
             if app_state['portfolio_manager']:
                 app_state['portfolio_manager'].load_account_info()
                 app_state['portfolio_manager'].load_portfolio_allocations()
             
         except Exception as e:
-            logger.error(f"Error connecting to IBKR: {e}", exc_info=True)
+            logger.error(f"Error in connection setup: {e}", exc_info=True)
             app_state['connected'] = False
             
-            # Even if connection fails, still load simulated cash account
+            # Even if setup fails, still load simulated cash account
             try:
                 if app_state['portfolio_manager']:
                     app_state['portfolio_manager'].load_account_info()
@@ -163,12 +168,9 @@ def connect_ibkr_async():
 
 # Disconnect from IBKR
 def disconnect_ibkr():
-    """Disconnect from IBKR"""
-    
-    if app_state['ibkr_app'] and hasattr(app_state['ibkr_app'], 'connected') and app_state['ibkr_app'].connected:
-        logger.info("Disconnecting from IBKR")
-        app_state['ibkr_app'].disconnect_from_ibkr()
-        app_state['connected'] = False
+    """Disconnect from IBKR (simulated for demo)"""
+    app_state['connected'] = False
+    logger.info("Demo mode: Disconnected from simulated IBKR connection")
 
 # Add a function to simulate cash deposit
 @app.route('/deposit', methods=['GET', 'POST'])
@@ -238,22 +240,55 @@ def transfer():
         to_account=investment_account_id
     )
     
-    # If connected to IBKR, also update the investment account
-    investment_success = True
-    if app_state['connected'] and app_state['investment_manager']:
+    # Update static account data
+    investment_success = False
+    if app_state['static_account_data']:
         try:
-            # Notify investment manager of incoming cash
-            investment_success = app_state['investment_manager'].receive_cash_transfer(amount)
+            # Update cash balances in static account data
+            if 'data' in app_state['static_account_data'] and 'account_info' in app_state['static_account_data']['data']:
+                for key in ['TotalCashValue_SGD', 'AvailableFunds_SGD', 'CashBalance_BASE']:
+                    if key in app_state['static_account_data']['data']['account_info']:
+                        current_cash = float(app_state['static_account_data']['data']['account_info'][key])
+                        app_state['static_account_data']['data']['account_info'][key] = str(current_cash + amount)
+            
+            if 'summary' in app_state['static_account_data']:
+                for key in ['TotalCashValue_SGD', 'AvailableFunds_SGD', 'CashBalance_BASE']:
+                    if key in app_state['static_account_data']['summary']:
+                        current_cash = float(app_state['static_account_data']['summary'][key])
+                        app_state['static_account_data']['summary'][key] = str(current_cash + amount)
+            
+            # Update portfolio values
+            for key in ['NetLiquidation_SGD', 'EquityWithLoanValue_SGD']:
+                if 'data' in app_state['static_account_data'] and 'account_info' in app_state['static_account_data']['data']:
+                    if key in app_state['static_account_data']['data']['account_info']:
+                        current_value = float(app_state['static_account_data']['data']['account_info'][key])
+                        app_state['static_account_data']['data']['account_info'][key] = str(current_value + amount)
+                
+                if 'summary' in app_state['static_account_data']:
+                    if key in app_state['static_account_data']['summary']:
+                        current_value = float(app_state['static_account_data']['summary'][key])
+                        app_state['static_account_data']['summary'][key] = str(current_value + amount)
+            
+            # Save updated account data
+            save_account_details(app_state['static_account_data'], investment_account_id)
+            
+            # Update investment manager
+            if app_state['investment_manager']:
+                app_state['investment_manager'].investment_account = app_state['static_account_data']
+                app_state['investment_manager'].receive_cash_transfer(amount)
+            
+            investment_success = True
+            
         except Exception as e:
             logger.error(f"Error updating investment account after transfer: {e}")
             investment_success = False
     
-    if success_cash:
+    if success_cash and investment_success:
         flash(f'Successfully transferred ${amount:.2f} to investment account', 'success')
         # Reload account info
         app_state['portfolio_manager'].load_account_info()
-        if app_state['connected'] and app_state['investment_manager']:
-            app_state['investment_manager'].load_account_info()
+    elif success_cash:
+        flash(f'Transfer completed, but there was an issue updating investment account', 'warning')
     else:
         flash('Failed to transfer from cash account', 'danger')
     
@@ -298,7 +333,7 @@ def dashboard():
         initialize_components()
         connect_ibkr_async()
     
-    # Wait a moment for connection to initialize
+    # Wait a moment for initialization
     time.sleep(1)
     
     # Get cash account information (from portfolio manager)
@@ -309,19 +344,92 @@ def dashboard():
         logger.error(f"Error loading cash account info: {e}", exc_info=True)
         flash('Error loading cash account information', 'danger')
     
-    # Get investment account information (from investment manager)
-    investment_account = None
-    if app_state['connected'] and app_state['investment_manager']:
-        try:
-            investment_account = app_state['investment_manager'].load_account_info()
-        except Exception as e:
-            logger.error(f"Error loading investment account info: {e}", exc_info=True)
-            flash('Error loading investment account information', 'warning')
+    # Get investment account information from static data
+    investment_account_raw = app_state['static_account_data']
+    
+    # Process investment account data for dashboard display
+    processed_investment_account = {
+        'id': 'N/A',
+        'cash_balance': 0.0,
+        'total_value': 0.0,
+        'positions': {}
+    }
+    
+    if investment_account_raw:
+        # Basic account information
+        processed_investment_account['id'] = investment_account_raw.get('id', 'N/A')
+        
+        # Extract positions (filter out non-position entries)
+        positions = {}
+        if 'positions' in investment_account_raw:
+            for key, pos in investment_account_raw['positions'].items():
+                if isinstance(pos, dict) and 'symbol' in pos and 'marketValue' in pos:
+                    positions[key] = pos
+        
+        processed_investment_account['positions'] = positions
+        
+        # Calculate total position value
+        position_value = sum(float(pos.get('marketValue', 0)) for pos in positions.values())
+        
+        # Get cash balance - try different paths
+        cash_balance = 0.0
+        
+        # Try data/account_info path first
+        if ('data' in investment_account_raw and 
+            'account_info' in investment_account_raw['data'] and 
+            'TotalCashValue_SGD' in investment_account_raw['data']['account_info']):
+            cash_balance = float(investment_account_raw['data']['account_info']['TotalCashValue_SGD'])
+        # Then try summary path
+        elif ('summary' in investment_account_raw and 
+              'TotalCashValue_SGD' in investment_account_raw['summary']):
+            cash_balance = float(investment_account_raw['summary']['TotalCashValue_SGD'])
+        # If both fail, check positions for cash value
+        elif 'CashBalance_BASE' in investment_account_raw.get('positions', {}):
+            cash_balance = float(investment_account_raw['positions']['CashBalance_BASE'])
+        
+        processed_investment_account['cash_balance'] = cash_balance
+        
+        # Get portfolio value - try different paths
+        portfolio_value = 0.0
+        
+        # Try data/account_info path first
+        if ('data' in investment_account_raw and 
+            'account_info' in investment_account_raw['data'] and 
+            'NetLiquidation_SGD' in investment_account_raw['data']['account_info']):
+            portfolio_value = float(investment_account_raw['data']['account_info']['NetLiquidation_SGD'])
+        # Then try summary path
+        elif ('summary' in investment_account_raw and 
+              'NetLiquidation_SGD' in investment_account_raw['summary']):
+            portfolio_value = float(investment_account_raw['summary']['NetLiquidation_SGD'])
+        # If both fail, calculate from positions and cash
+        else:
+            portfolio_value = position_value + cash_balance
+        
+        processed_investment_account['total_value'] = portfolio_value
+        
+        # Add additional useful information
+        
+        # Available funds
+        if ('data' in investment_account_raw and 
+            'account_info' in investment_account_raw['data'] and 
+            'AvailableFunds_SGD' in investment_account_raw['data']['account_info']):
+            processed_investment_account['available_funds'] = float(investment_account_raw['data']['account_info']['AvailableFunds_SGD'])
+        elif ('summary' in investment_account_raw and 
+              'AvailableFunds_SGD' in investment_account_raw['summary']):
+            processed_investment_account['available_funds'] = float(investment_account_raw['summary']['AvailableFunds_SGD'])
+        else:
+            processed_investment_account['available_funds'] = cash_balance
+        
+        # Position count
+        processed_investment_account['position_count'] = len(positions)
+        
+        # Position value
+        processed_investment_account['position_value'] = position_value
     
     # Prepare account data for template
     account_data = {
         'cash_account': app_state['portfolio_manager'].cash_account,
-        'investment_account': investment_account
+        'investment_account': processed_investment_account
     }
     
     # Generate charts
@@ -357,29 +465,31 @@ def portfolio():
             app_state['portfolio_manager'].load_portfolio_allocations()
             cash_portfolio = app_state['portfolio_manager'].cash_portfolio
     
-    # Get investment portfolio data - FIX IS HERE
-    investment_portfolio = {}  # Initialize as empty dict instead of None
-    if app_state['investment_manager']:
-        # Call the method and ignore its return value
-        app_state['investment_manager'].load_portfolio_allocations()
-        # Then get the actual portfolio data from the instance
-        if hasattr(app_state['investment_manager'], 'investment_portfolio') and app_state['investment_manager'].investment_portfolio:
-            investment_portfolio = app_state['investment_manager'].investment_portfolio
+    # Get investment portfolio data from investment manager
+    investment_portfolio = {}
+    if app_state['investment_manager'] and hasattr(app_state['investment_manager'], 'investment_portfolio'):
+        if not investment_portfolio:
+            app_state['investment_manager'].load_portfolio_allocations()
+        investment_portfolio = app_state['investment_manager'].investment_portfolio
     
-    # Get current positions
+    # Get cash positions
     cash_positions = {}
     if app_state['portfolio_manager'] and app_state['portfolio_manager'].cash_account:
         cash_positions = app_state['portfolio_manager'].cash_account.get('positions', {})
     
-    # Get investment positions
+    # Get investment positions from static data
     investment_positions = {}
-    if app_state['connected'] and app_state['investment_manager']:
-        investment_positions = app_state['investment_manager']._get_current_positions()
+    if app_state['static_account_data'] and 'positions' in app_state['static_account_data']:
+        positions = app_state['static_account_data']['positions']
+        for key, pos in positions.items():
+            # Only include actual position objects
+            if isinstance(pos, dict) and ('symbol' in pos or 'position' in pos):
+                investment_positions[key] = pos
     
     return render_template(
         'portfolio.html',
         cash_portfolio=cash_portfolio,
-        investment_portfolio=investment_portfolio,  # Now guaranteed to be a dict
+        investment_portfolio=investment_portfolio,
         cash_positions=cash_positions,
         investment_positions=investment_positions
     )
@@ -450,9 +560,6 @@ def api_account_data():
     if app_state['portfolio_manager']:
         app_state['portfolio_manager'].load_account_info()
     
-    if app_state['connected'] and app_state['investment_manager']:
-        app_state['investment_manager'].load_account_info()
-    
     # Prepare cash account data
     cash_account_data = {
         'id': 'N/A',
@@ -468,21 +575,20 @@ def api_account_data():
             'total_value': get_account_value(cash_account)
         }
     
-    # Prepare investment account data
+    # Prepare investment account data from static data
     investment_account_data = {
         'id': 'N/A',
         'cash_balance': 0,
         'total_value': 0
     }
     
-    if app_state['connected'] and app_state['investment_manager']:
-        investment_account = app_state['investment_manager'].get_account_info()
-        if investment_account:
-            investment_account_data = {
-                'id': investment_account.get('id', 'N/A'),
-                'cash_balance': app_state['investment_manager'].get_cash_balance(),
-                'total_value': app_state['investment_manager'].get_account_value()
-            }
+    if app_state['static_account_data']:
+        investment_account = app_state['static_account_data']
+        investment_account_data = {
+            'id': investment_account.get('id', 'N/A'),
+            'cash_balance': get_cash_balance(investment_account),
+            'total_value': get_account_value(investment_account)
+        }
     
     # Format cash level info
     cash_level = {'error': 'Cash level check not available'}
@@ -503,41 +609,42 @@ def api_account_data():
 def generate_allocation_chart():
     """Generate asset allocation chart"""
     
-    # Get positions from investment manager if available and connected
+    # Get positions from static account data
     positions = {}
-    if app_state['connected'] and app_state['investment_manager']:
-        app_state['investment_manager'].load_portfolio_allocations()  # This returns True/False but loads the data
-        positions = app_state['investment_manager'].investment_portfolio
+    if app_state['static_account_data'] and 'positions' in app_state['static_account_data']:
+        positions = app_state['static_account_data']['positions']
     
-    # If no positions from investment manager, fall back to portfolio manager
-    if not positions and app_state['portfolio_manager'] and app_state['portfolio_manager'].investment_account:
-        positions = app_state['portfolio_manager'].investment_account.get('positions', {})
-    
-    if not positions:
-        return None
+    # If no positions found, try investment manager
+    if not positions and app_state['investment_manager'] and hasattr(app_state['investment_manager'], 'investment_account'):
+        account = app_state['investment_manager'].investment_account
+        if account and 'positions' in account:
+            positions = account['positions']
     
     # Prepare data for chart
     allocation_data = {}
     for key, position in positions.items():
-        # Handle different position formats
-        if isinstance(position, dict):
-            symbol = None
-            market_value = 0
+        # Skip non-position entries
+        if not isinstance(position, dict):
+            continue
             
-            # Get symbol based on position format
-            if 'contract' in position:
-                if isinstance(position['contract'], dict):
-                    symbol = position['contract'].get('symbol', key)
-                else:
-                    symbol = getattr(position['contract'], 'symbol', key)
-            else:
-                symbol = position.get('symbol', key)
-            
-            # Get market value
-            market_value = position.get('marketValue', 0)
-            
-            if symbol and market_value > 0:
-                allocation_data[symbol] = market_value
+        # Skip entries that don't look like positions
+        if not ('marketValue' in position or ('position' in position and 'symbol' in position)):
+            continue
+        
+        # Get symbol
+        symbol = position.get('symbol', key)
+        
+        # Extract symbol from key if needed
+        if not symbol and '_' in key:
+            symbol = key.split('_')[0]
+        
+        # Get market value
+        market_value = position.get('marketValue', 0)
+        if not market_value and 'position' in position and 'marketPrice' in position:
+            market_value = position['position'] * position['marketPrice']
+        
+        if market_value > 0:
+            allocation_data[symbol] = market_value
     
     # Create chart if we have data
     if allocation_data:
@@ -556,7 +663,7 @@ def generate_performance_chart():
     
     # Simulated performance data
     # In a real implementation, this would pull historical data from IBKR
-    dates = pd.date_range(start='2023-01-01', end='2023-12-31', freq='M')
+    dates = pd.date_range(start='2024-01-01', end='2025-2-28', freq='M')
     
     cash_values = [10000 + i*500 for i in range(len(dates))]
     investment_values = [20000 + i*1000 + (i*i*10) for i in range(len(dates))]
@@ -724,7 +831,7 @@ def create_templates():
     
     <footer class="mt-5 p-3 text-center bg-light">
         <div class="container">
-            <p>Arki Portfolio Management &copy; 2023</p>
+            <p>Arki Portfolio Management &copy; 2025</p>
         </div>
     </footer>
     
@@ -824,8 +931,9 @@ def create_templates():
 <h1>Portfolio Dashboard</h1>
 
 <div class="row mt-4">
-    <div class="col-md-6">
-        <div class="card metrics-card">
+    <!-- First row with account cards - full width on small screens, half width on medium+ screens -->
+    <div class="col-12 col-md-6 mb-4">
+        <div class="card metrics-card h-100">
             <div class="card-header">
                 <h5>Cash Account (Simulated)</h5>
             </div>
@@ -854,44 +962,44 @@ def create_templates():
         </div>
     </div>
     
-    <div class="col-md-6">
-    <div class="card metrics-card">
-        <div class="card-header">
-            <h5>Investment Account{% if not connected %} (Simulated){% endif %}</h5>
-        </div>
-        <div class="card-body">
-            {% if account_data.investment_account %}
-                <p><strong>Account ID:</strong> {{ account_data.investment_account.id }}</p>
-                
-                {% if account_data.investment_account.cash_balance is defined and account_data.investment_account.cash_balance is not none %}
-                    <p><strong>Cash Balance:</strong> ${{ "%.2f"|format(account_data.investment_account.cash_balance|float) }}</p>
+    <div class="col-12 col-md-6 mb-4">
+        <div class="card metrics-card h-100">
+            <div class="card-header">
+                <h5>Investment Account{% if not connected %} (Simulated){% endif %}</h5>
+            </div>
+            <div class="card-body">
+                {% if account_data.investment_account %}
+                    <p><strong>Account ID:</strong> {{ account_data.investment_account.id }}</p>
+                    
+                    {% if account_data.investment_account.cash_balance is defined and account_data.investment_account.cash_balance is not none %}
+                        <p><strong>Cash Balance:</strong> ${{ "%.2f"|format(account_data.investment_account.cash_balance|float) }}</p>
+                    {% else %}
+                        <p><strong>Cash Balance:</strong> $0.00</p>
+                    {% endif %}
+                    
+                    {% if account_data.investment_account.total_value is defined and account_data.investment_account.total_value is not none %}
+                        <p><strong>Portfolio Value:</strong> ${{ "%.2f"|format(account_data.investment_account.total_value|float) }}</p>
+                    {% else %}
+                        <p><strong>Portfolio Value:</strong> $0.00</p>
+                    {% endif %}
+                    
+                    <p><strong>Number of Positions:</strong> {{ account_data.investment_account.positions|length if account_data.investment_account.positions else 0 }}</p>
+                    
+                    {% if not connected %}
+                        <div class="alert alert-warning mt-3">
+                            <small>Investment account is in simulation mode. Connect to IBKR for real data.</small>
+                        </div>
+                    {% endif %}
                 {% else %}
-                    <p><strong>Cash Balance:</strong> $0.00</p>
+                    <p>Investment account data not available</p>
                 {% endif %}
-                
-                {% if account_data.investment_account.total_value is defined and account_data.investment_account.total_value is not none %}
-                    <p><strong>Portfolio Value:</strong> ${{ "%.2f"|format(account_data.investment_account.total_value|float) }}</p>
-                {% else %}
-                    <p><strong>Portfolio Value:</strong> $0.00</p>
-                {% endif %}
-                
-                <p><strong>Number of Positions:</strong> {{ account_data.investment_account.positions|length if account_data.investment_account.positions else 0 }}</p>
-                
-                {% if not connected %}
-                    <div class="alert alert-warning mt-3">
-                        <small>Investment account is in simulation mode. Connect to IBKR for real data.</small>
-                    </div>
-                {% endif %}
-            {% else %}
-                <p>Investment account data not available</p>
-            {% endif %}
+            </div>
         </div>
     </div>
-</div>
 
-<div class="row mt-4">
-    <div class="col-md-6">
-        <div class="card">
+    <!-- Second row with charts - full width on small screens, half width on medium+ screens -->
+    <div class="col-12 col-md-6 mb-4">
+        <div class="card h-100">
             <div class="card-header">
                 <h5>Asset Allocation</h5>
             </div>
@@ -907,8 +1015,8 @@ def create_templates():
         </div>
     </div>
     
-    <div class="col-md-6">
-        <div class="card">
+    <div class="col-12 col-md-6 mb-4">
+        <div class="card h-100">
             <div class="card-header">
                 <h5>Performance History</h5>
             </div>
@@ -927,7 +1035,7 @@ def create_templates():
 
 {% if cash_account and cash_account.transactions and cash_account.transactions|length > 0 %}
 <div class="row mt-4">
-    <div class="col-md-12">
+    <div class="col-12">
         <div class="card">
             <div class="card-header">
                 <h5>Recent Transactions</h5>
@@ -987,10 +1095,36 @@ def create_templates():
     setTimeout(function() {
         location.reload();
     }, 60000);
+
+    // Resize Plotly charts when window size changes
+    window.addEventListener('resize', function() {
+        if (allocationData) Plotly.relayout('allocation-plot', {
+            'width': document.getElementById('allocation-plot').offsetWidth
+        });
+        if (performanceData) Plotly.relayout('performance-plot', {
+            'width': document.getElementById('performance-plot').offsetWidth
+        });
+    });
 </script>
+
+<style>
+    .chart-container {
+        height: 350px;
+        width: 100%;
+    }
+    
+    .metrics-card {
+        height: 100%;
+    }
+    
+    @media (min-width: 768px) {
+        .chart-container {
+            height: 450px;
+        }
+    }
+</style>
 {% endblock %}
     '''
-    
     # Deposit page
     deposit_html = '''
 {% extends "base.html" %}
@@ -1372,3 +1506,4 @@ if __name__ == "__main__":
     
     # Start Flask app
     app.run(debug=True, host='0.0.0.0', port=5001)
+                

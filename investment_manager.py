@@ -761,13 +761,31 @@ class InvestmentManager:
                 'value': order_data['quantity'] * order_data['price'],
                 'strategy': order_data['strategy']
             }
+
+            order_log_fields = [
+                'timestamp', 'symbol', 'secType', 'exchange', 
+                'action', 'quantity', 'price', 'value', 'strategy'
+            ]
             
             # Append to order log file
             try:
                 df = pd.DataFrame([order_log])
+                
+                # Ensure all fields are in the dataframe in the correct order
+                df = df[order_log_fields]
+                
                 if os.path.exists(self.investment_config['order_log_path']):
-                    df.to_csv(self.investment_config['order_log_path'], mode='a', header=False, index=False)
+                    # Check if file is empty
+                    file_empty = os.path.getsize(self.investment_config['order_log_path']) == 0
+                    
+                    # If file exists and is not empty, append without header
+                    if not file_empty:
+                        df.to_csv(self.investment_config['order_log_path'], mode='a', header=False, index=False)
+                    else:
+                        # If file exists but is empty, write with header
+                        df.to_csv(self.investment_config['order_log_path'], index=False)
                 else:
+                    # If file doesn't exist, create with header
                     df.to_csv(self.investment_config['order_log_path'], index=False)
             except Exception as e:
                 logger.error(f"Error writing to order log: {e}")

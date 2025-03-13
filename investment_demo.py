@@ -6,6 +6,7 @@ import sys
 import json
 import os
 from datetime import datetime
+from simple_account_storage import save_account_details, load_account_details
 
 # Import the InvestmentManager class
 from investment_manager import InvestmentManager
@@ -139,6 +140,20 @@ class InvestmentDemo:
         
         # Initialize scheduler thread flag
         self.running = False
+        
+        # Try to load saved account data
+        saved_account = load_account_details(self.investment_account_id)
+        if saved_account:
+            self.logger.info(f"Loaded saved account data for {self.investment_account_id}")
+            self.investment_manager.investment_account = saved_account
+        
+        # Get OneDrive path from environment variable
+        self.onedrive_path = os.environ.get('ONEDRIVE_PATH')
+        if self.onedrive_path:
+            self.logger.info(f"OneDrive path set to: {self.onedrive_path}")
+        else:
+            self.logger.info("OneDrive path not set")
+
     
     def start_cli(self):
         """Start the CLI interface in a separate thread"""
@@ -213,7 +228,7 @@ class InvestmentDemo:
                 # Rebalance portfolio if needed
                 # Uncomment to enable automatic rebalancing
                 # self.investment_manager.rebalance_portfolio()
-                
+
                 # Wait for next interval
                 time.sleep(self.scheduler_interval)
             except Exception as e:
@@ -279,6 +294,14 @@ class InvestmentDemo:
                     print("No trades were executed.")
                 
                 self.logger.info(f"Investment result: {result}")
+                
+                # Save account data after processing deposits
+                if self.investment_manager.investment_account:
+                    self.logger.info("Saving account data after deposit processing...")
+                    save_account_details(
+                        self.investment_manager.investment_account,
+                        self.investment_account_id,
+                    )
             except Exception as e:
                 self.logger.error(f"Error processing deposit: {e}")
     
@@ -286,6 +309,14 @@ class InvestmentDemo:
         """Stop the demo"""
         self.logger.info("Stopping investment demo")
         self.running = False
+        
+        # Save account data before stopping
+        if self.investment_manager.investment_account:
+            self.logger.info("Saving account data before exit...")
+            save_account_details(
+                self.investment_manager.investment_account,
+                self.investment_account_id,
+            )
 
 
 def main():
