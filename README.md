@@ -234,11 +234,3 @@ python investment_demo.py
 
 ---
 
-## License
-
-[Specify your license information here]
-
-## Contact
-
-For support or questions, contact [your email or contact information].
-```
