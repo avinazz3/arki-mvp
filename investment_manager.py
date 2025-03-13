@@ -946,7 +946,7 @@ class InvestmentManager:
         
         # Calculate new orders (with 0 new cash, just rebalancing)
         # But need to account for reserved cash
-        effective_cash = max(0, float(account_info.get('AvailableFunds_SGD', 0)) - reserved_cash)
+        effective_cash = max(0, float(account_info.get('AvailableFunds_USD', 0)) - reserved_cash)
         orders = self._calculate_orders(allocation_plan, current_positions, effective_cash)
         
         # If no new orders and no retry orders, portfolio is balanced

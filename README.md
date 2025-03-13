@@ -21,8 +21,8 @@ This application is a portfolio management system for handling cash and investme
 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/portfolio-management.git
-cd portfolio-management
+git clone https://github.com/avinashparthiban/arki-mvp.git
+cd arki-mvp
 ```
 
 2. Create and activate a virtual environment
@@ -76,6 +76,7 @@ pip install -r requirements.txt
 This application uses Resend for email notifications. Important notes:
 
 1. **Testing Mode**: When using the default `onboarding@resend.dev` sender, emails can only be sent to the verified email address.
+    - Right now emails can only be sent to my personal email. But once we can do a 2FA, I can add your email too.
 
 2. **For Production**: You'll need to:
    - Verify a domain with Resend
@@ -177,6 +178,7 @@ python investment_demo.py
    - The system will attempt to connect to IBKR TWS/Gateway
    - It will load configuration and portfolio allocations
    - A command-line interface will appear with available commands
+   - Ignore all market data related warnings/errors: the program will work as intended.
 
 2. **Commands Available**:
    - `deposit <amount>`: Simulate a cash deposit and allocate it according to the portfolio strategy
@@ -189,11 +191,12 @@ python investment_demo.py
      - Calculate how to allocate the funds according to your portfolio allocation
      - Place market orders to purchase the required securities
      - Show you a summary of the executed trades
+     - View the ordersheet in the `logs/orders.csv` file
 
 4. **Scheduler**:
    - The system runs a scheduler that periodically:
      - Processes any pending cash deposits
-     - Can be configured to automatically rebalance your portfolio (currently commented out)
+     - Can be configured to automatically rebalance your portfolio
 
 5. **Error Handling**:
    - If TWS is not running, you'll receive appropriate error messages
@@ -224,6 +227,7 @@ python investment_demo.py
 
 ### Milestone 1 and 3:
 - Run the `client_portal.py` and test out the deposit function.
+- 
 
 ### Milestone 2 and 3:
 - Run the `investment_demo.py` to test the automated investment management system.

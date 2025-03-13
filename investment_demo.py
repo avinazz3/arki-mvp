@@ -224,10 +224,6 @@ class InvestmentDemo:
                 
                 # Process any pending cash deposits
                 self._process_cash_deposits()
-                
-                # Rebalance portfolio if needed
-                # Uncomment to enable automatic rebalancing
-                # self.investment_manager.rebalance_portfolio()
 
                 # Wait for next interval
                 time.sleep(self.scheduler_interval)
