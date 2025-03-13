@@ -7,7 +7,11 @@ numpy>=1.19.0
 
 # Web application
 flask>=2.0.1
+flask-wtf>=1.1.1
 flask-bootstrap>=3.3.7.1
+
+# Web forms
+wtforms>=2.3.3
 
 # Visualization
 plotly>=5.3.1

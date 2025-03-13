@@ -1,9 +1,9 @@
 {
   "id": "DU4184147",
   "summary": {
-    "AvailableFunds_SGD": "432581.25810535025",
-    "NetLiquidation_SGD": "1155763.1800000004",
-    "TotalCashValue_SGD": "429296.9381053499"
+    "AvailableFunds_SGD": "415136.2164325218",
+    "NetLiquidation_SGD": "1155763.1800000006",
+    "TotalCashValue_SGD": "411851.89643252146"
   },
   "positions": {
     "AccountCode": "DU4184147",
@@ -176,89 +176,89 @@
     "SPY_STK": {
       "symbol": "SPY",
       "secType": "STK",
-      "position": 259.0,
+      "position": 266.0,
       "marketPrice": 559.09,
-      "marketValue": 144804.31,
+      "marketValue": 148717.94,
       "avgCost": 559.09
     },
     "QQQ_STK": {
       "symbol": "QQQ",
       "secType": "STK",
-      "position": 111.0,
+      "position": 114.0,
       "marketPrice": 808.6254435225329,
-      "marketValue": 89757.42423100115,
+      "marketValue": 92183.30056156876,
       "avgCost": 808.6254435225326
     },
     "EWS_STK": {
       "symbol": "EWS",
       "secType": "STK",
-      "position": 74.0,
+      "position": 76.0,
       "marketPrice": 752.0503735071436,
-      "marketValue": 55651.727639528624,
+      "marketValue": 57155.82838654291,
       "avgCost": 752.0503735071435
     },
     "AAPL_STK": {
       "symbol": "AAPL",
       "secType": "STK",
-      "position": 37.0,
+      "position": 38.0,
       "marketPrice": 936.9263606368817,
-      "marketValue": 34666.27534356462,
+      "marketValue": 35603.20170420151,
       "avgCost": 936.9263606368813
     },
     "AGG_STK": {
       "symbol": "AGG",
       "secType": "STK",
-      "position": 185.0,
+      "position": 190.0,
       "marketPrice": 384.7251158733609,
-      "marketValue": 71174.14643657177,
-      "avgCost": 384.7251158733609
+      "marketValue": 73097.77201593856,
+      "avgCost": 384.72511587336095
     },
     "LQD_STK": {
       "symbol": "LQD",
       "secType": "STK",
-      "position": 111.0,
+      "position": 114.0,
       "marketPrice": 502.8028849634296,
-      "marketValue": 55811.12023094069,
-      "avgCost": 502.80288496342916
+      "marketValue": 57319.52888583098,
+      "avgCost": 502.8028849634291
     },
     "TLT_STK": {
       "symbol": "TLT",
       "secType": "STK",
-      "position": 37.0,
+      "position": 38.0,
       "marketPrice": 907.2021573329957,
-      "marketValue": 33566.47982132084,
+      "marketValue": 34473.68197865384,
       "avgCost": 907.2021573329952
     },
     "GLD_STK": {
       "symbol": "GLD",
       "secType": "STK",
-      "position": 74.0,
+      "position": 76.0,
       "marketPrice": 944.3223223504003,
-      "marketValue": 69879.85185392962,
+      "marketValue": 71768.49649863043,
       "avgCost": 944.3223223504001
     },
     "USO_STK": {
       "symbol": "USO",
       "secType": "STK",
-      "position": 37.0,
+      "position": 38.0,
       "marketPrice": 735.8399167259699,
-      "marketValue": 27226.076918860887,
+      "marketValue": 27961.916835586857,
       "avgCost": 735.8399167259702
     },
     "SLV_STK": {
       "symbol": "SLV",
       "secType": "STK",
-      "position": 74.0,
+      "position": 76.0,
       "marketPrice": 434.29766775134266,
-      "marketValue": 32138.027413599357,
+      "marketValue": 33006.62274910204,
       "avgCost": 434.297667751343
     },
     "REET_STK": {
       "symbol": "REET",
       "secType": "STK",
-      "position": 37.0,
+      "position": 38.0,
       "marketPrice": 832.191946090061,
-      "marketValue": 30791.102005332257,
+      "marketValue": 31623.293951422318,
       "avgCost": 832.1919460900609
     }
   },
@@ -278,14 +278,14 @@
       "AccruedDividend_SGD": "0.00",
       "AccruedDividend-C_SGD": "0.00",
       "AccruedDividend-S_SGD": "0.00",
-      "AvailableFunds_SGD": "513580.6681053509",
+      "AvailableFunds_SGD": "496135.6264325225",
       "AvailableFunds-C_SGD": "7577.06",
       "AvailableFunds-S_SGD": "1057470.15",
       "Billable_SGD": "0.00",
       "Billable-C_SGD": "0.00",
       "Billable-S_SGD": "0.00",
       "BuyingPower_SGD": "7100314.71",
-      "CashBalance_BASE": "483296.6345053501",
+      "CashBalance_BASE": "465851.59283252165",
       "CashBalance_SGD": "1066403.89",
       "CashBalance_USD": "-3476.55",
       "ColumnPrio-C": "2",
@@ -297,7 +297,7 @@
       "Currency_SGD": "SGD",
       "Currency_USD": "USD",
       "Cushion": "0.999598",
-      "EquityWithLoanValue_SGD": "1155763.1800000004",
+      "EquityWithLoanValue_SGD": "1155763.1800000006",
       "EquityWithLoanValue-C_SGD": "7577.06",
       "EquityWithLoanValue-S_SGD": "1057934.24",
       "ExcessLiquidity_SGD": "1065083.23",
@@ -376,7 +376,7 @@
       "NetDividend_BASE": "0.00",
       "NetDividend_SGD": "0.00",
       "NetDividend_USD": "0.00",
-      "NetLiquidation_SGD": "1155763.1800000004",
+      "NetLiquidation_SGD": "1155763.1800000006",
       "NetLiquidation-C_SGD": "7577.06",
       "NetLiquidation-S_SGD": "1057934.28",
       "NetLiquidationByCurrency_BASE": "1065511.3333",
@@ -418,7 +418,7 @@
       "TotalCashBalance_BASE": "1061763.1764",
       "TotalCashBalance_SGD": "1066403.89",
       "TotalCashBalance_USD": "-3476.55",
-      "TotalCashValue_SGD": "510296.6381053507",
+      "TotalCashValue_SGD": "492851.5964325223",
       "TotalCashValue-C_SGD": "7577.06",
       "TotalCashValue-S_SGD": "1054186.12",
       "TotalDebitCardPendingCharges_SGD": "0.00",

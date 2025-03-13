@@ -699,7 +699,7 @@ def api_account_data():
 def generate_allocation_chart():
     """Generate asset allocation chart"""
     
-    # Get investment positions from static data using the same approach as portfolio()
+    # Get investment positions from static data
     investment_positions = {}
     if app_state['static_account_data'] and 'positions' in app_state['static_account_data']:
         positions = app_state['static_account_data']['positions']
