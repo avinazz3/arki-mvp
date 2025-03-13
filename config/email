@@ -2,15 +2,23 @@
     "ibkr": {
         "host": "127.0.0.1",
         "port": 7497,
-        "client_id": 1
+        "client_id": 2
     },
     "accounts": {
-        "cash_account_id": "DU12345",
+        "cash_account_id": "SIMULATED_CASH",
         "investment_account_id": "DU4184147"
     },
+    "dashboard": {
+        "refresh_interval": 60,
+        "charts": [
+            "asset_allocation",
+            "performance"
+        ]
+    },
     "cash_management": {
-        "min_cash_level": 100000,
-        "transfer_threshold": 120000
+        "min_cash_level": 10000.0,
+        "transfer_threshold": 5000.0,
+        "allocation_tolerance": 0.02
     },
     "email": {
         "smtp_server": "smtp.gmail.com",
@@ -19,7 +27,7 @@
         "sender_password": "",
         "recipient_email": "avimcm77@gmail.com",
         "email_service": "resend",
-        "resend_api_key": "re_2vznwWbq_E7LuhmuQgw3t2Sqfp3Y9u92Q",
-        "resend_from_email": "transfers@yourdomain.com"
+        "resend_api_key": "",
+        "resend_from_email": "onboarding@resend.dev"
     }
 }

@@ -459,8 +459,8 @@ class InvestmentManager:
             
             # Always use delayed data for consistency
             if hasattr(self.ibkr, 'client') and hasattr(self.ibkr.client, 'reqMarketDataType'):
-                # Set to always use delayed data (3 = delayed data)
-                self.ibkr.client.reqMarketDataType(3)
+                # Set to always use delayed data (4 = delayed data + frozen)
+                self.ibkr.client.reqMarketDataType(4)
             
             # Request market data
             price = self.ibkr.request_market_data(contract)

@@ -20,5 +20,15 @@
         "min_cash_level": 11000.0,
         "transfer_threshold": 4000.0,
         "allocation_tolerance": 0.02
+    },
+    "email": {
+        "smtp_server": "smtp.gmail.com",
+        "smtp_port": 587,
+        "sender_email": "avimcm77@gmail.com",
+        "sender_password": "",
+        "recipient_email": "denverlitcus@gmail.com",
+        "email_service": "resend",
+        "resend_api_key": "",
+        "resend_from_email": "onboarding@resend.dev"
     }
 }

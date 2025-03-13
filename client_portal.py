@@ -48,7 +48,7 @@ app_state = {
 def load_config():
     """Load application configuration"""
     
-    config_file = os.path.join(app_state['config_path'], 'client_portal_config.json')
+    config_file = os.path.join(app_state['config_path'], 'email')
     default_config = {
         'ibkr': {
             'host': '127.0.0.1',
@@ -56,7 +56,7 @@ def load_config():
             'client_id': 2  # Different from scheduler
         },
         'accounts': {
-            'cash_account_id': 'SIMULATED_CASH',
+            'cash_account_id': 'DU12345',
             'investment_account_id': 'DU4184147'
         },
         'dashboard': {
@@ -67,6 +67,16 @@ def load_config():
             'min_cash_level': 10000.0,
             'transfer_threshold': 5000.0,
             'allocation_tolerance': 0.02
+        },
+        'email': {
+            'smtp_server': 'smtp.gmail.com',
+            'smtp_port': 587,
+            'sender_email': 'avimcm77@gmail.com',
+            'sender_password': '',
+            'recipient_email': 'avimcm77@gmail.com',
+            'email_service': 'resend',
+            'resend_api_key': 're_2vznwWbq_E7LuhmuQgw3t2Sqfp3Y9u92Q',
+            'resend_from_email': 'onboarding@resend.dev'
         }
     }
     
@@ -82,6 +92,31 @@ def load_config():
     try:
         with open(config_file, 'r') as f:
             config = json.load(f)
+            
+        # Add email configuration if it doesn't exist
+        if 'email' not in config:
+            config['email'] = default_config['email']
+            with open(config_file, 'w') as f:
+                json.dump(config, f, indent=4)
+                
+        # Make sure all required email parameters exist
+        elif 'email' in config:
+            email_updated = False
+            if 'email_service' not in config['email']:
+                config['email']['email_service'] = 'resend'
+                email_updated = True
+            if 'resend_api_key' not in config['email']:
+                config['email']['resend_api_key'] = os.environ.get('RESEND_API_KEY', '')
+                email_updated = True
+            if 'resend_from_email' not in config['email']:
+                config['email']['resend_from_email'] = 'onboarding@resend.dev'
+                email_updated = True
+                
+            # Save updated config if needed
+            if email_updated:
+                with open(config_file, 'w') as f:
+                    json.dump(config, f, indent=4)
+                    
         logger.info(f"Loaded client portal configuration from {config_file}")
         return config
     except Exception as e:
@@ -93,6 +128,16 @@ def initialize_components():
     """Initialize IBKR client and managers"""
     
     config = load_config()
+    # Debug logging for email config
+    if 'email' in config and 'resend_api_key' in config['email']:
+        # Don't log the actual API key for security
+        logger.info(f"Resend API key configured: {'Yes' if config['email']['resend_api_key'] else 'No'}")
+    else:
+        logger.warning("Resend API key not found in configuration")
+
+    # Add this to your initialize_components function
+    if 'email' in config:
+        logger.info(f"Email service configured: {config['email'].get('email_service', 'not specified')}")
     
     # Create IBKR client if it doesn't exist
     if app_state['ibkr_app'] is None:
@@ -191,6 +236,51 @@ def deposit():
                 flash(f'Successfully deposited ${amount} to cash account', 'success')
                 # Reload account info
                 app_state['portfolio_manager'].load_account_info()
+                
+                # Check if we need to transfer excess cash
+                cash_info = app_state['portfolio_manager'].check_cash_level()
+                
+                if 'should_transfer' in cash_info and cash_info['should_transfer']:
+                    # Get account IDs
+                    config = load_config()
+                    cash_account_id = app_state['portfolio_manager'].cash_account['id']
+                    investment_account_id = config['accounts']['investment_account_id']
+                    
+                    # Calculate amount to transfer (excess cash)
+                    transfer_amount = cash_info['excess_cash']
+                    
+                    # Perform transfer from simulated cash account
+                    transfer_success = app_state['portfolio_manager'].transfer_cash(
+                        amount=transfer_amount,
+                        from_account=cash_account_id,
+                        to_account=investment_account_id
+                    )
+                    
+                    if transfer_success:
+                        flash(f'Automatically transferred ${transfer_amount:.2f} to investment account', 'success')
+                        # Update investment account (same code as in the transfer route)
+                        if app_state['static_account_data']:
+                            try:
+                                # Update cash balances in static account data
+                                if 'data' in app_state['static_account_data'] and 'account_info' in app_state['static_account_data']['data']:
+                                    for key in ['TotalCashValue_SGD', 'AvailableFunds_SGD', 'CashBalance_BASE']:
+                                        if key in app_state['static_account_data']['data']['account_info']:
+                                            current_cash = float(app_state['static_account_data']['data']['account_info'][key])
+                                            app_state['static_account_data']['data']['account_info'][key] = str(current_cash + transfer_amount)
+                                
+                                # More update code as in your transfer route...
+                                
+                                # Save updated account data
+                                save_account_details(app_state['static_account_data'], investment_account_id)
+                                
+                                # Update investment manager
+                                if app_state['investment_manager']:
+                                    app_state['investment_manager'].investment_account = app_state['static_account_data']
+                                    app_state['investment_manager'].receive_cash_transfer(transfer_amount)
+                            except Exception as e:
+                                logger.error(f"Error updating investment account after automatic transfer: {e}")
+                    else:
+                        flash('Failed to execute automatic transfer', 'warning')
             else:
                 flash('Failed to deposit to cash account', 'danger')
         else:
@@ -609,28 +699,26 @@ def api_account_data():
 def generate_allocation_chart():
     """Generate asset allocation chart"""
     
-    # Get positions from static account data
-    positions = {}
+    # Get investment positions from static data using the same approach as portfolio()
+    investment_positions = {}
     if app_state['static_account_data'] and 'positions' in app_state['static_account_data']:
         positions = app_state['static_account_data']['positions']
+        for key, pos in positions.items():
+            # Only include actual position objects
+            if isinstance(pos, dict) and ('symbol' in pos or 'position' in pos):
+                investment_positions[key] = pos
     
     # If no positions found, try investment manager
-    if not positions and app_state['investment_manager'] and hasattr(app_state['investment_manager'], 'investment_account'):
+    if not investment_positions and app_state['investment_manager'] and hasattr(app_state['investment_manager'], 'investment_account'):
         account = app_state['investment_manager'].investment_account
         if account and 'positions' in account:
-            positions = account['positions']
+            for key, pos in account['positions'].items():
+                if isinstance(pos, dict) and ('symbol' in pos or 'position' in pos):
+                    investment_positions[key] = pos
     
     # Prepare data for chart
     allocation_data = {}
-    for key, position in positions.items():
-        # Skip non-position entries
-        if not isinstance(position, dict):
-            continue
-            
-        # Skip entries that don't look like positions
-        if not ('marketValue' in position or ('position' in position and 'symbol' in position)):
-            continue
-        
+    for key, position in investment_positions.items():
         # Get symbol
         symbol = position.get('symbol', key)
         

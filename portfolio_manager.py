@@ -8,12 +8,14 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import base64
 import os.path
-from email.mime.text import MIMEText
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+import resend
+
+VERIFIED_EMAIL = "avimcm77@gmail.com"
 
 # Set up logging
 logging.basicConfig(
@@ -25,6 +27,47 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Email helper functions
+def create_message(sender, to, subject, message_text):
+    """
+    Create a message for an email.
+    
+    Args:
+        sender: Email address of the sender
+        to: Email address of the recipient
+        subject: Subject of the email
+        message_text: HTML content of the email
+        
+    Returns:
+        Dictionary containing the raw message
+    """
+    message = MIMEText(message_text, 'html')
+    message['to'] = to
+    message['from'] = sender
+    message['subject'] = subject
+    return {'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()}
+
+def send_message(service, user_id, message):
+    """
+    Send an email message.
+    
+    Args:
+        service: Gmail API service instance
+        user_id: User's email address or 'me'
+        message: Message to be sent
+        
+    Returns:
+        Sent message object
+    """
+    try:
+        message = (service.users().messages().send(userId=user_id, body=message)
+                   .execute())
+        logger.info(f'Message Id: {message["id"]}')
+        return message
+    except HttpError as error:
+        logger.error(f'An error occurred while sending email: {error}')
+        raise
 
 class PortfolioManager:
     """
@@ -58,6 +101,24 @@ class PortfolioManager:
         # Initialize simulated cash account if needed
         self._initialize_simulated_cash_account()
         
+        # Check for required dependencies
+        self._check_dependencies()
+
+    def _check_dependencies(self):
+        """Check for required dependencies based on configuration"""
+        email_config = self.config.get('email', {})
+        email_service = email_config.get('email_service', 'smtp').lower()
+        
+        if email_service == 'resend':
+            try:
+                import resend
+                logger.info("Resend library is available")
+            except ImportError:
+                logger.warning(
+                    "Resend library is not installed but configured as email service. "
+                    "Install it with 'pip install resend' or email notifications will fail."
+                )
+        
     def _load_config(self):
         """Load configuration from file"""
         # First try to load client_portal_config.json
@@ -74,7 +135,7 @@ class PortfolioManager:
                     config['accounts'] = {}
                 
                 # Extract relevant account info and set defaults
-                config['cash_account_id'] = config['accounts'].get('cash_account_id', 'SIMULATED_CASH')
+                config['cash_account_id'] = config['accounts'].get('cash_account_id', 'DU12345')
                 config['investment_account_id'] = config['accounts'].get('investment_account_id', 'DU3915301')
                 
                 # Get cash management settings
@@ -88,10 +149,13 @@ class PortfolioManager:
                 config['simulated_cash_file'] = os.path.join(self.config_path, 'simulated_cash_account.json')
                 config['log_dir'] = os.path.join(self.config_path, 'logs')
                 
-                # Add email config if not present
+                # Make sure email config exists with defaults
                 if 'email' not in config:
                     config['email'] = {
-                        'recipient_email': 'example@example.com'
+                        'recipient_email': 'example@example.com',
+                        'email_service': 'resend',
+                        'resend_api_key': os.environ.get('RESEND_API_KEY', ''),
+                        'resend_from_email': 'transfers@yourdomain.com'
                     }
                 
                 # Ensure log directory exists
@@ -102,8 +166,8 @@ class PortfolioManager:
             # If no config file exists, create default config
             logger.warning("No configuration file found. Creating default configuration.")
             default_config = {
-                'cash_account_id': 'SIMULATED_CASH',
-                'investment_account_id': 'DU3915301',
+                'cash_account_id': 'DU12345',
+                'investment_account_id': 'DU4184147',
                 'min_cash_level': 10000.0,
                 'transfer_threshold': 5000.0,
                 'allocation_tolerance': 0.02,
@@ -111,7 +175,10 @@ class PortfolioManager:
                 'simulated_cash_file': os.path.join(self.config_path, 'simulated_cash_account.json'),
                 'log_dir': os.path.join(self.config_path, 'logs'),
                 'email': {
-                    'recipient_email': 'example@example.com'
+                    'recipient_email': 'example@example.com',
+                    'email_service': 'resend',
+                    'resend_api_key': os.environ.get('RESEND_API_KEY', ''),
+                    'resend_from_email': 'transfers@yourdomain.com'
                 }
             }
             
@@ -129,8 +196,8 @@ class PortfolioManager:
             logger.error(f"Error loading configuration: {e}", exc_info=True)
             # Return minimal default config
             return {
-                'cash_account_id': 'SIMULATED_CASH',
-                'investment_account_id': 'DU3915301',
+                'cash_account_id': 'DU12345',
+                'investment_account_id': 'DU4184147',
                 'min_cash_level': 10000.0,
                 'transfer_threshold': 5000.0,
                 'allocation_tolerance': 0.02,
@@ -138,7 +205,10 @@ class PortfolioManager:
                 'simulated_cash_file': os.path.join(self.config_path, 'simulated_cash_account.json'),
                 'log_dir': os.path.join(self.config_path, 'logs'),
                 'email': {
-                    'recipient_email': 'example@example.com'
+                    'recipient_email': 'example@example.com',
+                    'email_service': 'resend',
+                    'resend_api_key': os.environ.get('RESEND_API_KEY', ''),
+                    'resend_from_email': 'transfers@yourdomain.com'
                 }
             }
     
@@ -453,93 +523,104 @@ class PortfolioManager:
         
     def notify_transfer(self, transfer_data):
         """
-        Send email notification about cash transfer using Gmail API
+        Send email notification about cash transfer using Resend
         
         Args:
             transfer_data: Transfer details
         """
-        logger.info("Sending transfer notification email via Gmail API")
-        
         try:
-            email_config = self.config['email']
-            recipient_email = email_config.get('recipient_email')
+            import resend
             
-            if not recipient_email:
+            # Get email configuration
+            email_config = self.config['email']
+            original_recipient = email_config.get('recipient_email')
+            
+            if not original_recipient:
                 logger.warning("Recipient email not configured. Notification not sent.")
                 return False
             
-            # Set up Gmail API credentials
-            creds = None
-            # The file token.json stores the user's access and refresh tokens
-            if os.path.exists("token.json"):
-                creds = Credentials.from_authorized_user_file("token.json", 
-                                                            ["https://www.googleapis.com/auth/gmail.send"])
+            # In testing mode with onboarding@resend.dev, we can only send to the owner's email
+            from_email = email_config.get('resend_from_email', 'onboarding@resend.dev')
+            testing_mode = from_email == 'onboarding@resend.dev'
             
-            # If there are no (valid) credentials available, let the user log in
-            if not creds or not creds.valid:
-                if creds and creds.expired and creds.refresh_token:
-                    creds.refresh(Request())
-                else:
-                    try:
-                        flow = InstalledAppFlow.from_client_secrets_file(
-                            "credentials.json", ["https://www.googleapis.com/auth/gmail.send"]
-                        )
-                        creds = flow.run_local_server(port=0)
-                        # Save the credentials for the next run
-                        with open("token.json", "w") as token:
-                            token.write(creds.to_json())
-                    except Exception as e:
-                        logger.error(f"Error with Gmail authentication: {e}")
-                        logger.info("Notification will be logged but not sent via email")
-                        return False
+            # If in testing mode, force the recipient to be your own email
+            recipient_email = VERIFIED_EMAIL if testing_mode else original_recipient
             
-            # Create email message
-            message = MIMEMultipart()
-            message['to'] = recipient_email
-            message['subject'] = f"Cash Transfer Notification - {transfer_data['amount']} SGD"
+            # Resend API key
+            resend_api_key = "re_2vznwWbq_E7LuhmuQgw3t2Sqfp3Y9u92Q"
             
-            # Create email body
-            body = f"""
+            # Set API key
+            resend.api_key = resend_api_key
+            
+            # Create email subject
+            subject = f"Cash Transfer Notification - {transfer_data['amount']} SGD"
+            
+            # Create HTML content
+            html_content = f"""
             <html>
-            <body>
-                <h3>Cash Transfer Notification</h3>
-                <p>A cash transfer has been executed between accounts:</p>
-                <table border="1">
-                    <tr><th>Item</th><th>Details</th></tr>
-                    <tr><td>Date/Time</td><td>{transfer_data['timestamp']}</td></tr>
-                    <tr><td>From Account</td><td>{transfer_data['from_account']}</td></tr>
-                    <tr><td>To Account</td><td>{transfer_data['to_account']}</td></tr>
-                    <tr><td>Amount</td><td>{transfer_data['amount']} SGD</td></tr>
-                </table>
-                <p>This is an automated notification from the portfolio management system.</p>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                    <h2 style="color: #333366;">Cash Transfer Notification</h2>
+                    <p>A cash transfer has been executed between accounts:</p>
+                    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                        <tr style="background-color: #f2f2f2;">
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Item</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Details</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; border: 1px solid #ddd;">Date/Time</td>
+                            <td style="padding: 10px; border: 1px solid #ddd;">{transfer_data['timestamp']}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; border: 1px solid #ddd;">From Account</td>
+                            <td style="padding: 10px; border: 1px solid #ddd;">{transfer_data['from_account']}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; border: 1px solid #ddd;">To Account</td>
+                            <td style="padding: 10px; border: 1px solid #ddd;">{transfer_data['to_account']}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; border: 1px solid #ddd;">Amount</td>
+                            <td style="padding: 10px; border: 1px solid #ddd;">{transfer_data['amount']} SGD</td>
+                        </tr>
+                    </table>
+                    <p style="color: #666;">This is an automated notification from the portfolio management system.</p>
+                    
+                    {f"<p><em>Note: This email was sent to you as the verified account owner. The intended recipient was {original_recipient}.</em></p>" if testing_mode and original_recipient != recipient_email else ""}
+                </div>
             </body>
             </html>
             """
             
-            message.attach(MIMEText(body, 'html'))
+            # Log sending attempt
+            logger.info(f"Sending transfer notification email via Resend from {from_email} to {recipient_email}")
             
-            try:
-                # Encode the message
-                encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-                
-                # Create the Gmail API service
-                service = build('gmail', 'v1', credentials=creds)
-                
-                # Send the message
-                send_message = service.users().messages().send(
-                    userId="me", 
-                    body={'raw': encoded_message}
-                ).execute()
-                
-                logger.info(f"Transfer notification email sent via Gmail API. Message ID: {send_message['id']}")
+            if testing_mode and original_recipient != recipient_email:
+                logger.info(f"In testing mode: redirecting email from {original_recipient} to {recipient_email}")
+            
+            # Prepare email parameters
+            email_params = {
+                "from": from_email,
+                "to": recipient_email,
+                "subject": subject,
+                "html": html_content
+            }
+            
+            # Send the email
+            response = resend.Emails.send(email_params)
+            
+            if hasattr(response, 'id'):
+                logger.info(f"Transfer notification email sent via Resend. Email ID: {response.id}")
                 return True
-            except Exception as e:
-                logger.error(f"Error sending email: {e}")
-                logger.info("Notification was logged but not sent via email")
+            else:
+                logger.error(f"Failed to send email. Resend response: {response}")
                 return False
-        
+                
+        except ImportError:
+            logger.error("Resend library not installed. Run 'pip install resend' to install it.")
+            return False
         except Exception as e:
-            logger.error(f"Error in notification process: {e}", exc_info=True)
+            logger.error(f"Error sending email via Resend: {e}", exc_info=True)
             return False
     
     def save_config(self):

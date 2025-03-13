@@ -15,6 +15,9 @@ plotly>=5.3.1
 # Scheduling
 schedule>=1.1.0
 
+# Email notifications
+resend>=2.6.0
+
 # Utility libraries
 python-dateutil>=2.8.2
 pytz>=2021.1
